@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Account;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Notifications\LowBalanceNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -66,7 +67,7 @@ class TransactionTest extends TestCase
         ]);
         $this->assertSame(0, Transaction::count());
         $this->assertDatabaseHas('notifications', [
-            'type' => \App\Notifications\LowBalanceNotification::class,
+            'type' => LowBalanceNotification::class,
             'notifiable_type' => User::class,
             'notifiable_id' => $user->id,
         ]);
@@ -85,5 +86,34 @@ class TransactionTest extends TestCase
         $this->actingAs($user)->get(route('dashboard'))->assertOk();
         $this->get(route('transactions.index'))->assertOk();
         $this->get(route('transactions.create'))->assertOk();
+    }
+
+    public function test_balance_api_returns_the_existing_endpoint_and_balance_shape(): void
+    {
+        $user = User::factory()->create();
+        Account::create([
+            'user_id' => $user->id,
+            'account_number' => 'ACC-987654',
+            'balance' => 1234.50,
+            'minimum_balance' => 100.00,
+        ]);
+
+        $this->getJson('/api/balance')
+            ->assertOk()
+            ->assertJson([
+                'balance' => '1234.50',
+                'minimum_balance' => '100.00',
+            ]);
+    }
+
+    public function test_dashboard_stats_api_returns_statistics(): void
+    {
+        $this->getJson('/api/dashboard/stats')
+            ->assertOk()
+            ->assertExactJson([
+                'total_accounts' => 0,
+                'total_money' => 0,
+                'total_transactions_today' => 0,
+            ]);
     }
 }
